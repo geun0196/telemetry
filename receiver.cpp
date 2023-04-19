@@ -1,11 +1,35 @@
 #include <iostream>
-#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <termios.h>
 #include <telemetry/common/mavlink.h>
 #include <telemetry/mavlink_helpers.h>
+
+int serialSetting(int serial_port){
+	termios tty;
+    memset(&tty, 0, sizeof(tty));
+    if (tcgetattr(serial_port, &tty) != 0) {
+        std::cerr << "Error getting serial port attributes." << std::endl;
+        close(serial_port);
+        return 1;
+    }
+    cfsetospeed(&tty, B57600);
+    cfsetispeed(&tty, B57600);
+    tty.c_cflag &= ~PARENB; // no parity
+    tty.c_cflag &= ~CSTOPB; // 1 stop bit
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8; // 8 data bits
+    tty.c_cflag &= ~CRTSCTS; // no hardware flow control
+    tty.c_cc[VMIN] = 1; // read() blocks until at least 1 byte is available
+    tty.c_cc[VTIME] = 0; // read() blocks indefinitely
+    if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
+        std::cerr << "Error setting serial port attributes." << std::endl;
+        close(serial_port);
+        return 1;
+    }
+    return 0;
+}
 
 int main()
 {
@@ -14,30 +38,8 @@ int main()
         std::cerr << "Error opening serial port." << std::endl;
         return 1;
     }
-
-    struct termios options = {0};
-    if (tcgetattr(fd, &options) != 0) {
-        std::cerr << "Error getting serial port attributes." << std::endl;
-        close(fd);
-        return 1;
-    }
-    cfsetispeed(&options, B57600);
-    cfsetospeed(&options, B57600);
-    options.c_cflag = (CLOCAL | CREAD);
-    options.c_cflag &= ~PARENB;
-    options.c_cflag &= ~CSTOPB;
-    options.c_cflag &= ~CSIZE;
-    options.c_cflag = CS8;
-    options.c_cflag &= ~CRTSCTS;
-    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-    options.c_oflag &= ~OPOST;
-    options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME] = 50;
-    if (tcsetattr(fd, TCSANOW, &options) != 0) {
-        std::cerr << "Error setting serial port attributes." << std::endl;
-        close(fd);
-        return 1;
-    }
+    
+    serialSetting(fd);
 
     //Create a Mavlink instance
     mavlink_message_t msg;
