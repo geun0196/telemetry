@@ -60,14 +60,15 @@ int main()
                 if (msg.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
                   mavlink_statustext_t text;
                   mavlink_msg_statustext_decode(&msg, &text);
-                  message = std::string(reinterpret_cast<char*>(text.text));
-                  std::cout << "Received id: " << text.id << std::endl;
-                  std::cout << "Received: " << message << std::endl;
-                  printf("=======================================================================\n");
+                  message += std::string(reinterpret_cast<char*>(text.text));
+                  //std::cout << "Received id: " << text.id << std::endl;
+                  //std::cout << "Received: " << message << std::endl;
+                  //printf("=======================================================================\n");
                   break;
                 }
             }
         }
+	std::cout << message << std::endl;
     }
 
     //Close the serial port

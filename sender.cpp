@@ -51,12 +51,13 @@ int main()
     // Set the fields of the statustext message
     statustext.severity = MAV_SEVERITY_INFO; // Set severity to INFO
 
-    // Send a message every 1 second
+    const int max_chunk_size = 49;
+    char temp_buffer[50];
+    std::string temp;
+    
     while (true) {
 		std::string message = "Enter_new_road nxt velocity 42.6 nxt road_id 5 nxt way_points : nxt 0 35.18413 128.0713 3.3 1 0 nxt 1 35.18413 128.0713 3.3 1 0 nxt 2 35.18513 128.0673 3.3 1 0 nxt 3 35.18603 128.0653 3.3 1 0 nxt 4 35.18413 128.0713 3.3 1 0 nxt 5 35.18413 128.0713 3.3 1 0 nxt 6 35.18413 128.0713 3.3 1 0 nxt 7 35.18413 128.0713 3.3 1 0 nxt 8 35.18413 128.0713 3.3 1 0 nxt 9 35.18413 128.0713 3.3 1 0 nxt 10 35.18413 128.0713 3.3 1 1";
-		const int max_chunk_size = 49;
-		char temp_buffer[50];
-		std::string temp;
+		
 		
 		for (int i = 0; i < message.length(); i += max_chunk_size) {
 				int chunk_size = std::min(max_chunk_size, static_cast<int>(message.length() - i));
@@ -84,10 +85,11 @@ int main()
 				}
 		}
 
-        sleep(10);
+        sleep(20);
     }
 
     // Close the serial port
     close(serial_port);
     return 0;
 }
+
