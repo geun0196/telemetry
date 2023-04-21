@@ -6,7 +6,27 @@
 #include <telemetry/common/mavlink.h>
 #include <telemetry/mavlink_helpers.h>
 
-int serialSetting(int serial_port){
+int sender_serialSetting(int serial_port){
+	termios tty;
+    memset(&tty, 0, sizeof(tty));
+    if (tcgetattr(serial_port, &tty) != 0) {
+        std::cerr << "Error getting serial port attributes." << std::endl;
+        close(serial_port);
+        return 1;
+    }
+    
+    cfsetospeed(&tty, B57600);
+    cfsetispeed(&tty, B57600);
+    
+    if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
+        std::cerr << "Error setting serial port attributes." << std::endl;
+        close(serial_port);
+        return 1;
+    }
+    return 0;
+}
+
+int receiver_serialSetting(int serial_port){   
     struct termios options = {0};
     if (tcgetattr(serial_port, &options) != 0) {
         std::cerr << "Error getting serial port attributes." << std::endl;
@@ -40,8 +60,8 @@ int main()
         std::cerr << "Error opening serial port." << std::endl;
         return 1;
     }
-    
-    serialSetting(fd);
+    sender_serialSetting(fd);
+    receiver_serialSetting(fd);
 
     //Create a Mavlink instance
     mavlink_message_t msg;
@@ -52,6 +72,7 @@ int main()
     //Wait for messages
     while (true) {
         uint8_t byte;
+        bool message_received = false;
         std::string message = "";
         while (read(fd, &byte, 1) == 1) {
             //Try to parse the message
@@ -61,18 +82,16 @@ int main()
                   mavlink_statustext_t text;
                   mavlink_msg_statustext_decode(&msg, &text);
                   message += std::string(reinterpret_cast<char*>(text.text));
-                  //std::cout << "Received id: " << text.id << std::endl;
-                  //std::cout << "Received: " << message << std::endl;
-                  //printf("=======================================================================\n");
-                  break;
+                  //break; => if break exist, faster but "\n" exist in string 
                 }
             }
         }
-	std::cout << message << std::endl;
+        std::cout << message << std::endl;
     }
 
     //Close the serial port
     close(fd);
     return 0;
 }
+
 

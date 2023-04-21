@@ -44,7 +44,6 @@ int main()
     // Create a Mavlink instance
     mavlink_message_t msg;
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-    mavlink_status_t status;
     mavlink_channel_t channel = MAVLINK_COMM_0;
     mavlink_statustext_t statustext;
 
