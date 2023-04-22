@@ -45,7 +45,7 @@ int receiver_serialSetting(int serial_port){
     options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
     options.c_oflag &= ~OPOST;
     options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME] = 50;
+    options.c_cc[VTIME] = 20;
     if (tcsetattr(serial_port, TCSANOW, &options) != 0) {
         std::cerr << "Error setting serial port attributes." << std::endl;
         close(serial_port);
@@ -69,48 +69,56 @@ int main()
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     mavlink_status_t status;
     mavlink_channel_t channel = MAVLINK_COMM_0;
-   
-    clock_t start, finish;
-    double duration;
 
     //Wait for messages
     while (true) {
+        printf("start while\n");
         uint8_t byte;
         bool message_received = false;
         std::string message = "";
         
-	// time start
-	start = clock();
-
-        while (read(fd, &byte, 1) == 1) {
-            //Try to parse the message
-            if (mavlink_parse_char(channel, byte, &msg, &status)) {           
-                //If a message is received, check if it's a string message
-                if (msg.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
-                  mavlink_statustext_t text;
-                  mavlink_msg_statustext_decode(&msg, &text);
-                  message += std::string(reinterpret_cast<char*>(text.text));
-                  break;  // => if break exist, faster but "\n" exist in string 
+        // time start
+        clock_t start = clock();
+        double elapsed_time = 0;
+        
+        while (elapsed_time < 2.0) {
+            // Non-blocking read
+            fd_set set;
+            FD_ZERO(&set);
+            FD_SET(fd, &set);
+            struct timeval timeout;
+            timeout.tv_sec = 10;
+            timeout.tv_usec = 0;
+            int rv = select(fd + 1, &set, NULL, NULL, &timeout);
+            if (rv == -1) {
+                std::cerr << "Error during select." << std::endl;
+                break;
+            } else if (rv == 0) {
+                // No data received within 2 seconds
+                break;
+            } else {
+                read(fd, &byte, 1);
+                if (mavlink_parse_char(channel, byte, &msg, &status)) {           
+                    //If a message is received, check if it's a string message
+                    if (msg.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
+                      mavlink_statustext_t text;
+                      mavlink_msg_statustext_decode(&msg, &text);
+                      message = std::string(reinterpret_cast<char*>(text.text));
+                      message_received = true;
+                      break;  // => if break exist, faster but "\n" exist in string 
+                    }
                 }
             }
+            elapsed_time = (double)(clock() - start) / CLOCKS_PER_SEC;
         }
-	// time end
-	finish = clock();
-	duration = (double)(finish - start) / CLOCKS_PER_SEC;
-	
-	std::cout << duration << "sec"  << std::endl;
-
-	// if time > 2sec
-	if (duration > 2.0){
-		message = "ERR";
-	}
-
-        std::cout << message << std::endl;
+        
+        if (message_received) {
+            // Process received message
+            std::cout << message << std::endl;
+        } else {
+            // No message received within 2 seconds
+            printf("timeout occurred\n");
+        }
     }
-
-    //Close the serial port
-    close(fd);
     return 0;
 }
-
-
