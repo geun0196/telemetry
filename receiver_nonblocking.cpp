@@ -54,6 +54,41 @@ int receiver_serialSetting(int serial_port){
     return 0;
 }
 
+bool receiveMessage(int fd, mavlink_message_t& msg, mavlink_status_t& status, mavlink_channel_t channel, std::string& message) {
+    uint8_t byte;
+    bool message_received = false;
+    
+    while (1) { 
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+        
+        struct timeval timeout;
+        timeout.tv_sec = 2; // wait 2sec for select function input
+        timeout.tv_usec = 0;
+        
+        int rv = select(fd + 1, &set, NULL, NULL, &timeout);
+        if (rv == -1) {
+            std::cerr << "Error during select." << std::endl;
+            break;
+        } else if (rv == 0) {
+            break;
+        } else {
+            read(fd, &byte, 1);
+            if (mavlink_parse_char(channel, byte, &msg, &status)) {
+                if (msg.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
+                    mavlink_statustext_t text;
+                    mavlink_msg_statustext_decode(&msg, &text);
+                    message = std::string(reinterpret_cast<char*>(text.text));
+                    message_received = true;
+                    break;
+                }
+            }
+        }
+    }
+    return message_received;
+}
+
 int main()
 {
     int fd = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY);
@@ -69,54 +104,19 @@ int main()
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     mavlink_status_t status;
     mavlink_channel_t channel = MAVLINK_COMM_0;
-
+    std::string message;
+    
     //Wait for messages
     while (true) {
         printf("start while\n");
-        uint8_t byte;
-        bool message_received = false;
-        std::string message = "";
         
-        // time start
-        clock_t start = clock();
-        double elapsed_time = 0;
-        
-        while (elapsed_time < 2.0) {
-            // Non-blocking read
-            fd_set set;
-            FD_ZERO(&set);
-            FD_SET(fd, &set);
-            struct timeval timeout;
-            timeout.tv_sec = 10;
-            timeout.tv_usec = 0;
-            int rv = select(fd + 1, &set, NULL, NULL, &timeout);
-            if (rv == -1) {
-                std::cerr << "Error during select." << std::endl;
-                break;
-            } else if (rv == 0) {
-                // No data received within 2 seconds
-                break;
-            } else {
-                read(fd, &byte, 1);
-                if (mavlink_parse_char(channel, byte, &msg, &status)) {           
-                    //If a message is received, check if it's a string message
-                    if (msg.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
-                      mavlink_statustext_t text;
-                      mavlink_msg_statustext_decode(&msg, &text);
-                      message = std::string(reinterpret_cast<char*>(text.text));
-                      message_received = true;
-                      break;  // => if break exist, faster but "\n" exist in string 
-                    }
-                }
-            }
-            elapsed_time = (double)(clock() - start) / CLOCKS_PER_SEC;
-        }
+        bool message_received = receiveMessage(fd, msg, status, channel, message);
         
         if (message_received) {
-            // Process received message
-            std::cout << message << std::endl;
+            printf("%s\n",message.c_str());
         } else {
-            // No message received within 2 seconds
+            message = "ERR";
+            printf("%s\n",message.c_str());
             printf("timeout occurred\n");
         }
     }
